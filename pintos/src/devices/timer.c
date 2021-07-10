@@ -186,32 +186,27 @@ timer_print_stats (void)
 }
 
 /* Timer interrupt handler. */
-//static int i = 0 ;
-
-
-
 static void
 timer_interrupt (struct intr_frame *args UNUSED)
 {
-  ticks++;
+  ticks++;    // icrease the number of ticks
   if (thread_mlfqs){
-     thread_current()->recent_cpu = realIntAddittion(thread_current()->recent_cpu,1);
-      if (ticks%TIMER_FREQ == 0){
-        updateEverySecond();
+     thread_current()->recent_cpu = realIntAddittion(thread_current()->recent_cpu,1);   //update recent cpu
+      if (ticks%TIMER_FREQ == 0){     // after 100 ticks
+        updateEverySecond();    // update periority and load avarage and recent cpu
       }
-      if(timer_ticks() % 4 ==0)
-        calculatePeriority(thread_current(),NULL);
+      if(timer_ticks() % 4 ==0)       // after 4 ticks
+        calculatePeriority(thread_current(),NULL);     // update periority
   }
-  thread_tick ();
-  int64_t time_now = timer_ticks ();
+  thread_tick ();   
+  int64_t time_now = timer_ticks ();    // get the time now 
   if (!list_empty (&waiter_list)){
-    struct thread *t = list_entry (list_begin (&waiter_list) , struct thread, elem);
-    while ( (!list_empty (&waiter_list) ) && ( t->sleepingTicks <= time_now )   ) 
+    struct thread *t = list_entry (list_begin (&waiter_list) , struct thread, elem);    //get first thread from waiter list
+    while ( (!list_empty (&waiter_list) ) && ( t->sleepingTicks <= time_now )   )       //if sleeping ticks <= the current time
     {
-      //printf("\n %d block removed",i++);
-      list_pop_front (&waiter_list);
-      thread_unblock (t);
-      t = list_entry (list_begin (&waiter_list) , struct thread, elem);
+      list_pop_front (&waiter_list);    // remove the first thread from waiter list
+      thread_unblock (t);               // unblock thread
+      t = list_entry (list_begin (&waiter_list) , struct thread, elem);                 //get first thread from waiter list
     }
   }
 }
@@ -288,3 +283,4 @@ real_time_delay (int64_t num, int32_t denom)
   ASSERT (denom % 1000 == 0);
   busy_wait (loops_per_tick * num / 1000 * TIMER_FREQ / (denom / 1000)); 
 }
+

@@ -15,81 +15,64 @@
 #include "userprog/process.h"
 #endif
 
-struct real
-intReal(int n)
-{
-  struct real result;
-  result.val = n * Delta;
-  return result;
-}
-int truncate(struct real x)
-{
-  return (x.val / Delta);
-}
-int realRound(struct real x)
-{
-  x.val = (x.val) >> (fixed_point - 1);
-  if (((x.val) % 2) == 1)
-    return (x.val >> 1) + 1;
-  else
-    return (x.val >> 1);
-}
-struct real
-realAddition(struct real x, struct real y)
-{
-  struct real result;
-  result.val = x.val + y.val;
-  return result;
-}
-struct real
-realSubtraction(struct real x, struct real y)
-{
-  struct real result;
-  result.val = x.val - y.val;
-  return result;
-}
-struct real
-realIntAddittion(struct real x, int n)
-{
-  struct real result;
-  result.val = x.val + (n * Delta);
-  return result;
-}
-struct real
-realIntSubtraction(struct real x, int n)
-{
-  struct real result;
-  result.val = x.val - (n * Delta);
-  return result;
-}
-struct real
-realMultiplication(struct real x, struct real y)
-{
-  struct real result;
-  result.val = (((int64_t)x.val) * y.val) / Delta;
-  return result;
-}
-struct real
-realIntMultiplication(struct real x, int n)
-{
-  struct real result;
-  result.val = (x.val) * n;
-  return result;
-}
-struct real
-realDivision(struct real x, struct real y) // returns real x /real y
-{
-  struct real result;
-  result.val = (((int64_t)x.val) * Delta) / y.val;
-  return result;
-}
-struct real
-realIntDivision(struct real x, int n) // returns real x / int n
-{
-  struct real result;
-  result.val = (x.val) / n;
-  return result;
-};
+inline real intReal (int value) //  change iteger to real
+      {
+        return value * F;
+      }
+
+      inline int truncate (real value) // truncate real number
+      {
+        return value / F;
+      }  
+
+      inline int realRound (real value)  // round real number
+      {
+        if(value >= 0)
+          return (value + F/2) / F;
+        else
+          return (value - F/2) / F;
+      }
+
+      inline real realAddition (real n1, real n2)  // add real to real
+      {
+        return n1 + n2;
+      }
+
+      inline real realIntAddittion (real n1, int n2)  // add real to int
+      {
+        return n1 + (n2 * F);
+      } 
+
+      inline real realSubtraction (real n1, real n2)  // subtract real from real
+      {
+        return n1 - n2;
+      }
+
+      inline real realIntSubtraction (real n1, int n2)  // subtract real from int
+      {
+        return n1 - (n2 * F);
+      } 
+
+      inline real realMultiplication (real n1, real n2)    // multiply real by real
+      {
+        return (((int64_t) n1) * n2) / F;
+      }
+
+      inline real realIntMultiplication (real n1, int n2) // multiply real by int
+      {
+        return n1 * n2;
+      } 
+
+      inline real realDivision (real n1, real n2)   // returns real x /real y
+      {
+        return (((int64_t) n1) * F )/ n2;
+      }
+
+      inline real realIntDivision (real n1, int n2) // returns real x / int n
+      {
+        return n1 / n2;
+      }
+
 
 /* Random value for struct thread's `magic' member.
    Used to detect stack overflow.  See the big comment at the top
@@ -166,7 +149,7 @@ void thread_init(void)
   lock_init(&tid_lock);
   list_init(&ready_list);
   list_init(&all_list);
-  load_avg.val = 0;
+  load_avg = 0;   // set load avarage by zero
 
   /* Set up a thread structure for the running thread. */
   initial_thread = running_thread();
@@ -175,11 +158,13 @@ void thread_init(void)
   initial_thread->tid = allocate_tid();
 }
 
+//function to update recent cpu
 void changeRecentCpu(struct thread *t, void *aux UNUSED)
 {
-  struct real temp = realDivision(realIntMultiplication(load_avg, 2), realIntAddittion(realIntMultiplication(load_avg, 2), 1));
+  real temp = realDivision(realIntMultiplication(load_avg, 2), realIntAddittion(realIntMultiplication(load_avg, 2), 1));
   t->recent_cpu = realIntAddittion(realMultiplication(temp, t->recent_cpu), t->nice);
 }
+//function to update load avarage
 void calculateLoadAvg()
 {
   int size = list_size(&ready_list);
@@ -187,37 +172,18 @@ void calculateLoadAvg()
     size++;
   load_avg = realAddition(realMultiplication((realIntDivision(intReal(59), 60)), load_avg), realIntMultiplication(realIntDivision(intReal(1), 60), size));
 }
+//function to update periority
 void calculatePeriority(struct thread *t, void *aux UNUSED)
 {
   t->priority = PRI_MAX - realRound(realIntDivision(t->recent_cpu, 4)) - t->nice * 2;
 }
 
-// void
-// calculatePeriority(struct thread *t, void *aux UNUSED)
-// {
-//   /* priority = pri_max - (recent_cpu /4) - (nice*2) ,
-//   priority will be integer not fraction */
-
-//   if (!thread_mlfqs || t == idle_thread)
-//     return;
-//     //return t->priority;
-
-//   int new_priority = PRI_MAX - realRound(realIntDivision(t->recent_cpu, 4)) - t->nice * 2;
-
-//   t->priority = new_priority;
-
-//   //return new_priority;
-// }
-
+//function to update recent cpu & load avarage and periority
 void updateEverySecond()
 {
   calculateLoadAvg();
   thread_foreach(changeRecentCpu, NULL);
   thread_foreach(calculatePeriority, NULL);
-  /*list_sort(&ready_list,list_greater_comp_priority,NULL);
-  struct thread *t = list_entry (list_begin (&ready_list) , struct thread, elem);
-  if (t->priority > thread_current()->priority)
-    thread_yield();*/
 }
 
 /* Starts preemptive thread scheduling by enabling interrupts.
@@ -316,6 +282,7 @@ tid_t thread_create(const char *name, int priority,
 
   /* Add to run queue. */
   thread_unblock(t);
+  // schedule the threads after update periority
   if (t->priority > thread_current()->priority)
   {
     thread_yield();
@@ -352,13 +319,11 @@ void thread_unblock(struct thread *t)
   enum intr_level old_level;
 
   ASSERT(is_thread(t));
-  //printf("thread : %d  & Current : %d\n",t->priority , thread_current()->priority);
-  old_level = intr_disable();
+  old_level = intr_disable(); //disable interrupt
   ASSERT(t->status == THREAD_BLOCKED);
   list_insert_ordered(&ready_list, &t->elem, &list_greater_comp_priority, NULL);
-  //list_push_back (&ready_list, &t->elem);
-  t->status = THREAD_READY;
-  intr_set_level(old_level);
+  t->status = THREAD_READY;     // change the status
+  intr_set_level(old_level);    //enable interrupt
 }
 
 /* Returns the name of the running thread. */
@@ -422,13 +387,12 @@ void thread_yield(void)
 
   ASSERT(!intr_context());
 
-  old_level = intr_disable();
+  old_level = intr_disable(); // disable interrupt
   if (cur != idle_thread)
-    list_insert_ordered(&ready_list, &cur->elem, &list_greater_comp_priority, NULL);
-  //list_push_back (&ready_list, &cur->elem);
-  cur->status = THREAD_READY;
-  schedule();
-  intr_set_level(old_level);
+    list_insert_ordered(&ready_list, &cur->elem, &list_greater_comp_priority, NULL);  // add the current thread in its place in sorted waiter list
+  cur->status = THREAD_READY;   //update status
+  schedule();   // reschedule the threads
+  intr_set_level(old_level);  // enable iterrupt
 }
 
 /* Invoke function 'func' on all threads, passing along 'aux'.
@@ -457,34 +421,34 @@ void thread_set_priority(int new_priority)
 
   if (!thread_mlfqs)
   {
-    current_thread->virtual_priority = new_priority;
+    current_thread->virtual_priority = new_priority; // update virtual priority
 
     if (list_empty(&current_thread->locks_list))
     {
-      current_thread->priority = new_priority;
+      current_thread->priority = new_priority;      // update periority
     }
     else
     {
-      struct lock *max_lock = list_entry(list_front(&current_thread->locks_list), struct lock, elem);
-      if (new_priority > max_lock->semaphore.max_priority)
+      struct lock *max_lock = list_entry(list_front(&current_thread->locks_list), struct lock, elem);   //get first lock
+      if (new_priority > max_lock->semaphore.max_priority)    // if the periority  > periority of semaphore
       {
-        current_thread->priority = new_priority;
-        max_lock->semaphore.max_priority = new_priority;
+        current_thread->priority = new_priority;    // update periority of current thread
+        max_lock->semaphore.max_priority = new_priority;    // update periority of lock semaphore
       }
     }
-    thread_yield();
+    thread_yield(); // reschedule the threads
   }
   else
   {
     int old_priority = current_thread->priority;
-    current_thread->priority = new_priority;
+    current_thread->priority = new_priority;  // update periority of current thread
     if (old_priority > new_priority)
     {
-      thread_yield();
+      thread_yield(); // reschedule the threads
     }
   }
 
-  intr_set_level(previous_level);
+  intr_set_level(previous_level); //enable interrupt
 }
 
 /* Returns the current thread's priority. */
@@ -496,10 +460,10 @@ int thread_get_priority(void)
 /* Sets the current thread's nice value to NICE. */
 void thread_set_nice(int nice)
 {
-  enum intr_level previous_level = intr_disable();
-  thread_current()->nice = nice;
-  calculatePeriority(thread_current(), NULL);
-  intr_set_level(previous_level);
+  enum intr_level previous_level = intr_disable();    //disable interrupt
+  thread_current()->nice = nice;    //set nice to current thread
+  calculatePeriority(thread_current(), NULL);// update periority
+  intr_set_level(previous_level);   //enable interrupt
 }
 
 /* Returns the current thread's nice value. */
@@ -737,3 +701,4 @@ allocate_tid(void)
 /* Offset of `stack' member within `struct thread'.
    Used by switch.S, which can't figure it out on its own. */
 uint32_t thread_stack_ofs = offsetof(struct thread, stack);
+

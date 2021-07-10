@@ -26,28 +26,34 @@ typedef int tid_t;
 #define PRI_MAX 63                      /* Highest priority. */
 
 
-#ifndef THREADS_FIXEDPOINT_H
-#define THREADS_FIXEDPOINT_H
-#include <stdint.h>
-# define fixed_point 16
-#define Delta (1<<fixed_point)                       /* Shift Left. */
-struct real
-  {
-    int val ;
-  };
-  
-struct real intReal(int n);      //convert integer n to real Number
-int realRound(struct real x);      //convert real Number x to integer by rounding 
-int truncate(struct real x);    //convert real Number x to integer by trancation
-struct real realAddition(struct real x, struct real y); // returns real x +  real y
-struct real realIntAddittion(struct real x, int n); // returns real x +  int n
-struct real realSubtraction(struct real x, struct real y); // returns real x - real y
-struct real realIntSubtraction(struct real x, int n); // returns real x - int n
-struct real realMultiplication(struct real x, struct real y ); // returns real x * real y
-struct real realIntMultiplication(struct real x, int n); // returns real x * int n
-struct real realDivision(struct real x, struct real y); // returns real x /real y
-struct real realIntDivision(struct real x, int n) ;// returns real x / int n
-#endif /* threads/fix-point.h */
+#ifndef THREAD_real_H
+      #define THREAD_real_H
+
+      #include <stdio.h>
+      #include <stdlib.h>
+
+      #define F  (1 << 14) 
+
+      /*Mask used to print the value in a user-friendly way*/
+      #define INTEGER_MASK 0x3ffff << 14
+      #define FRACTION_MASK 0x3fff 
+
+
+      /* Implementation of the 17.14 fixed-point representation.*/
+      typedef int32_t real;
+
+      real intReal (int value);
+      int truncate (real value);
+      int realRound (real value);
+      real realAddition (real n1, real n2);
+      real realIntAddittion (real n1, int n2);
+      real realSubtraction (real n1, real n2);
+      real realIntSubtraction (real n1, int n2);
+      real realMultiplication (real n1, real n2);
+      real realIntMultiplication (real n1, int n2);
+      real realDivision (real n1, real n2);
+      real realIntDivision (real n1, int n2);
+      #endif
 
 
 /* A kernel thread or user process.
@@ -121,7 +127,7 @@ struct thread
     struct list_elem elem;              /* List element. */
     struct list locks_list;
     struct lock* wait_lock;
-    struct real recent_cpu;
+    real recent_cpu;
     int nice;
     
 #ifdef USERPROG
@@ -134,7 +140,7 @@ struct thread
   };
 
 
-struct real load_avg;
+real load_avg;
 
 /* If false (default), use round-robin scheduler.
    If true, use multi-level feedback queue scheduler.
@@ -183,3 +189,4 @@ int thread_get_recent_cpu (void);
 int thread_get_load_avg (void);
 
 #endif /* threads/thread.h */
+

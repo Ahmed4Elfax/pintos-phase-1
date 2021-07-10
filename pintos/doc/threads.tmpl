@@ -8,9 +8,8 @@
 
 >> Fill in the names and email addresses of your group members.
 
-FirstName LastName <email@domain.example>
-FirstName LastName <email@domain.example>
-FirstName LastName <email@domain.example>
+Ahmed Eliwa <ahmedabdallaahmed766@gmail.com>
+Ahmed Elfax <ahmed55fax@gmail.com>
 
 ---- PRELIMINARIES ----
 
@@ -26,30 +25,60 @@ FirstName LastName <email@domain.example>
 
 ---- DATA STRUCTURES ----
 
->> A1: Copy here the declaration of each new or changed `struct' or
->> `struct' member, global or static variable, `typedef', or
->> enumeration.  Identify the purpose of each in 25 words or less.
+Answer: 
+-------
+    struct member int64_t sleepingTicks; At struct threads  --> to save the remaining sleeping ticks for each thread
 
 ---- ALGORITHMS ----
 
 >> A2: Briefly describe what happens in a call to timer_sleep(),
 >> including the effects of the timer interrupt handler.
 
+Answer: 
+-------
+1 - Check if the ticks required to sleep > 0 go to step 2 else return 
+2 - Set the sleepingTicks of the current thread with tiks required plus the start ticks
+3 - disable interrrupts then Add the current thread in sorted list called waiter_list
+4 - block the current thread 
+5 - enable interrrupts
+6 - At every tick check the threads waiting that should be unblock by comparing the ticks now with thread sleepingTicks
+
+
 >> A3: What steps are taken to minimize the amount of time spent in
 >> the timer interrupt handler?
+
+Answer: 
+-------
+    the blocked threads Are blocked and saved in sorted list according to their sleepingTicks ,
+    So the threads checked from the begining of the list untill the next threads sleeping ticks are bigger than the current tick 
 
 ---- SYNCHRONIZATION ----
 
 >> A4: How are race conditions avoided when multiple threads call
 >> timer_sleep() simultaneously?
 
+Answer: 
+-------
+    race conditions avoided by disabling interrrupts when adding and blocking the current thread
+
 >> A5: How are race conditions avoided when a timer interrupt occurs
 >> during a call to timer_sleep()?
+
+Answer: 
+-------
+    As we disable interrupts in timer_sleep(), So that 
+    ensures timer interrupts aren't handled during the invocation of this
+    function which prevents race conditions occure.
 
 ---- RATIONALE ----
 
 >> A6: Why did you choose this design?  In what ways is it superior to
 >> another design you considered?
+
+Answer: 
+-------
+    using Sorted list to save waiting threads to minimize the time required in timer interrupts rather than unSorted list 
+    that need to check all list elements (threads) to be unblocked.   
 
              PRIORITY SCHEDULING
              ===================
@@ -60,20 +89,156 @@ FirstName LastName <email@domain.example>
 >> `struct' member, global or static variable, `typedef', or
 >> enumeration.  Identify the purpose of each in 25 words or less.
 
+1 - Add
+        struct list locks_list    //Ordered list of the thread's held locks, with highest priority first
+        int virtual_priority;     //Default priority of the thread.
+        struct lock* wait_lock;  // Pointer to the lock that is currently blocking the thread
+    Into struct thread
+
+
+2 - Add
+        struct list_elem elem:  //This is a list_elem structure such that the lock can be tracked via the pintos list structure.
+    Into struct lock.
+
+
+3 - Add
+        int max_priority        //hold greatest priority of the thread's currently in semaphore wait queue.
+    Into struct semaphore
+
 >> B2: Explain the data structure used to track priority donation.
 >> Use ASCII art to diagram a nested donation.  (Alternately, submit a
 >> .png file.)
+
+Answer: 
+-------
+each thread containing a list of pointers to the locks it currently holds to control priority donation.
+the lock is only donated and added to this list when the donation priority is greater than the thread's current priority. 
+
+thread's current priority is determined by two checks:
+If the locks_list is empty, the thread's priority =thread->priority 
+Else, the thread's priority = the front of the locks list's priority.
+
+The lock's priority is held by lock's semaphore max_priority(containing max_priority of threads waiting on the semaphore)
+
+When a higher priority thread tries to acquire a lock, the lock pointer is inserted in descending order to the thread's lock list.
+
+--------------------------------------------------------------------------------------
+--------------------------------- ASCII Diagram: -------------------------------------
+--------------------------------- Initial Setup: -------------------------------------
+--------------------------------------------------------------------------------------
+- Locks: |     A     |     B     |- Threads: |    L       |    M       |    H       |-
+---------|pri:NULL   |pri:NULL   |-----------|vpri: 1     |vpri: 2     |vpri: 3     |-
+---------|holder:NULL|holder:NULL|-----------|locks:[]    |locks:[]    |locks:[]    |-
+---------------------------------------------|wait_lock:0 |wait_lock:0 |wait_lock:0 |-
+--------------------------------------------------------------------------------------
+-thread_get_priority(L)=1 - thread_get_priority(M)=2 - thread_get_priority(H)=3-------
+======================================================================================
+-- Thread L: lock_acquire(A); ----- Thread M: lock_acquire(b) ------------------------
+--------------------------------------------------------------------------------------
+- Locks: |     A     |     B     |- Threads: |    L       |    M       |    H       |-
+---------|pri: L->pri|pri: M->pri|-----------|vpri: 1     |vpri: 2     |vpri: 3     |-
+---------|holder: L  |holder: M  |-----------|locks:[]    |locks:[]    |locks:[]    |-
+---------------------------------------------|wait_lock:0 |wait_lock:0 |wait_lock:0 |-
+--------------------------------------------------------------------------------------
+-thread_get_priority(L)=1 - thread_get_priority(M)=2 - thread_get_priority(H)=3-------
+======================================================================================
+-- Thread M: lock_acquire(a) ---------------------------------------------------------
+--------------------------------------------------------------------------------------
+- Locks: |     A     |     B     |- Threads: |    L       |M-blocked   |    H       |-
+---------|pri: M->pri|pri: M->pri|-----------|vpri: 1     |vpri: 2     |vpri: 3     |-
+---------|holder: L  |holder: M  |-----------|locks:[A]   |locks:[]    |locks:[]    |-
+---------------------------------------------|wait_lock:0 |wait_lock:&L|wait_lock:0 |-
+--------------------------------------------------------------------------------------
+-thread_get_priority(L)=2 - thread_get_priority(M)=2 - thread_get_priority(H)=3-------
+======================================================================================
+-- Thread H: lock_acquire(b) ---------------------------------------------------------
+--------------------------------------------------------------------------------------
+- Locks: |     A     |     B     |- Threads: |    L       |M-blocked   |H-blocked   |-
+---------|pri: H->pri|pri: H->pri|-----------|vpri: 1     |vpri: 2     |vpri: 3     |-
+---------|holder: L  |holder: M  |-----------|locks:[A]   |locks:[B]   |locks:[]    |-
+---------------------------------------------|wait_lock:0 |wait_lock:&L|wait_lock:&M|-
+--------------------------------------------------------------------------------------
+-thread_get_priority(L)=3 - thread_get_priority(M)=3 - thread_get_priority(H)=3-------
+======================================================================================
+-- Thread L: lock_release(a) -- about to unblock Thread M: lock_acquire(a) -----------
+--------------------------------------------------------------------------------------
+- Locks: |     A     |     B     |- Threads: |    L       |M-blocked   |H-blocked   |-
+---------|pri: NULL  |pri: H->pri|-----------|vpri: 1     |vpri: 2     |vpri: 3     |-
+---------|holder:NULL|holder: M  |-----------|locks:[]    |locks:[B]   |locks:[]    |-
+---------------------------------------------|wait_lock:0 |wait_lock:&L|wait_lock:&M|-
+--------------------------------------------------------------------------------------
+-thread_get_priority(L)=1 - thread_get_priority(M)=3 - thread_get_priority(H)=3-------
+======================================================================================
+-- Thread M: lock_acquire(a) completes -----------------------------------------------
+--------------------------------------------------------------------------------------
+- Locks: |     A     |     B     |- Threads: |    L       |    M       |H-blocked   |-
+---------|pri: M->pri|pri: H->pri|-----------|vpri: 1     |vpri: 2     |vpri: 3     |-
+---------|holder: M  |holder: M  |-----------|locks:[]    |locks:[B]   |locks:[]    |-
+---------------------------------------------|wait_lock:0 |wait_lock:0 |wait_lock:&M|-
+--------------------------------------------------------------------------------------
+-thread_get_priority(L)=1 - thread_get_priority(M)=3 - thread_get_priority(H)=3-------
+======================================================================================
+--And so on and so forth -------------------------------------------------------------
 
 ---- ALGORITHMS ----
 
 >> B3: How do you ensure that the highest priority thread waiting for
 >> a lock, semaphore, or condition variable wakes up first?
 
+Answer: 
+-------
+        the waiter_list is Ordered descendly according to their priority
+
 >> B4: Describe the sequence of events when a call to lock_acquire()
 >> causes a priority donation.  How is nested donation handled?
 
+Answer: 
+-------
+  priority donation definition :
+  ----------------------------
+      Assume the case of two locks A,B and three threads L,M,H with priorities 1,2,3
+      both threads L,M lock_acquire(A).
+      thread L Hold lock A , thread M waiting for lock A to lock_release 
+      then the new priorities after donation 
+      thread_get_priority(L)=2 , thread_get_priority(M)=2 , thread_get_priority(H)=3
+
+
+  the sequence of events when a call to lock_acquire():
+  ---------------------------------------------------
+      from the prev example assume thread M hold lock B when thread H call lock_acquire(B)
+      1 - comparing the priorities of the two threads B,H 
+      2 - as the priority of H > M 
+            a - check that the lock != null.
+            b - lock->holder->priority = thread H priority.
+            c - set lock->semaphore.max_priority with thread H priority.
+            d - sort lock->holder->locks_list descendly according to max_priority.
+      for nested donation repeat steps from a with the lock = lock->holder->wait_lock
+
+  then the new priorities after nested donation 
+      thread_get_priority(L)=3 , thread_get_priority(M)=3 , thread_get_priority(H)=3
+
+
 >> B5: Describe the sequence of events when lock_release() is called
 >> on a lock that a higher-priority thread is waiting for.
+
+Assume the last case in the prev question and thread L call lock_release(A)
+
+Answer: 
+-------
+  Steps:
+  ------
+    1 - check if lock->holder->locks_list is empty 
+                lock->holder->priority = lock->holder->virtual_priority.
+              else 
+                a - get the max lock (the first element at lock->holder->locks_list)
+                b - check if max lock->semaphore.max_priority < lock->holder->virtual_priority
+                              lock->holder->priority = lock->holder->virtual_priority.
+                            else
+                              lock->holder->priority = max_lock->semaphore.max_priority;
+    2 - make lock->holder = NULL
+    3 - call sema_up (&lock->semaphore) to be unblocked.
+                            
+
 
 ---- SYNCHRONIZATION ----
 
@@ -81,11 +246,23 @@ FirstName LastName <email@domain.example>
 >> how your implementation avoids it.  Can you use a lock to avoid
 >> this race?
 
+Answer: 
+-------
+        potential race was prohibted by using disable interrrupts as no more than one call to thread_set_priority can be occurr.
+        lock can be used as a replacement to disable interrrupts.
+
 ---- RATIONALE ----
 
 >> B7: Why did you choose this design?  In what ways is it superior to
 >> another design you considered?
 
+Answer: 
+-------
+      lock can lead to unorded actions as there are many threads waiting on lock and don't enter 
+      lock simuately but they enter randomly .
+      interrupt disable make threads enter simuately .
+
+              
               ADVANCED SCHEDULER
               ==================
 
@@ -94,6 +271,109 @@ FirstName LastName <email@domain.example>
 >> C1: Copy here the declaration of each new or changed `struct' or
 >> `struct' member, global or static variable, `typedef', or
 >> enumeration.  Identify the purpose of each in 25 words or less.
+
+Answer: 
+-------
+  1 - Add to thread.h
+  
+      #ifndef THREAD_real_H
+      #define THREAD_real_H
+
+      #include <stdio.h>
+      #include <stdlib.h>
+
+      #define F  (1 << 14) 
+
+      /*Mask used to print the value in a user-friendly way*/
+      #define INTEGER_MASK 0x3ffff << 14
+      #define FRACTION_MASK 0x3fff 
+
+
+      /* Implementation of the 17.14 fixed-point representation.*/
+      typedef int32_t real;
+
+      real intReal (int value);
+      int truncate (real value);
+      int realRound (real value);
+      real realAddition (real n1, real n2);
+      real realIntAddittion (real n1, int n2);
+      real realSubtraction (real n1, real n2);
+      real realIntSubtraction (real n1, int n2);
+      real realMultiplication (real n1, real n2);
+      real realIntMultiplication (real n1, int n2);
+      real realDivision (real n1, real n2);
+      real realIntDivision (real n1, int n2);
+      #endif
+
+  2 - Add to thread.C
+
+      inline real intReal (int value) 
+      {
+        return value * F;
+      }
+
+      inline int truncate (real value) 
+      {
+        return value / F;
+      }  
+
+      inline int realRound (real value) 
+      {
+        if(value >= 0)
+          return (value + F/2) / F;
+        else
+          return (value - F/2) / F;
+      }
+
+      inline real realAddition (real n1, real n2)
+      {
+        return n1 + n2;
+      }
+
+      inline real realIntAddittion (real n1, int n2) 
+      {
+        return n1 + (n2 * F);
+      } 
+
+      inline real realSubtraction (real n1, real n2)
+      {
+        return n1 - n2;
+      }
+
+      inline real realIntSubtraction (real n1, int n2) 
+      {
+        return n1 - (n2 * F);
+      } 
+
+      inline real realMultiplication (real n1, real n2)
+      {
+        return (((int64_t) n1) * n2) / F;
+      }
+
+      inline real realIntMultiplication (real n1, int n2) 
+      {
+        return n1 * n2;
+      } 
+
+      inline real realDivision (real n1, real n2)
+      {
+        return (((int64_t) n1) * F )/ n2;
+      }
+
+      inline real realIntDivision (real n1, int n2) 
+      {
+        return n1 / n2;
+      }
+
+  3 - Add 
+          struct real recent_cpu;       //recent_cpu value
+          int nice;                     // nice value        
+      Into Struct thread.
+
+  4 - Add 
+          struct real load_avg;
+      Into File thread.h After struct thread
+
 
 ---- ALGORITHMS ----
 
@@ -105,23 +385,41 @@ FirstName LastName <email@domain.example>
 timer  recent_cpu    priority   thread
 ticks   A   B   C   A   B   C   to run
 -----  --  --  --  --  --  --   ------
- 0
- 4
- 8
-12
-16
-20
-24
-28
-32
-36
+ 0      0   0   0  63  61  59      A
+ 4      4   0   0  62  61  59      A
+ 8      8   0   0  61  61  59      B
+12      8   4   0  61  60  59      A
+16      12  4   0  60  60  59      B
+20      12  8   0  60  59  59      A
+24      16  8   0  59  59  59      C
+28      16  8   4  59  59  58      B
+32      16  12  4  59  58  58      A
+36      20  12  4  58  58  58      C
 
 >> C3: Did any ambiguities in the scheduler specification make values
 >> in the table uncertain?  If so, what rule did you use to resolve
 >> them?  Does this match the behavior of your scheduler?
 
+Answer: 
+-------
+      the ambiguity when all threads or more than two threads have the same priority which one should run : 
+      In the algorithm used the oldest run first As they add to the list in sorted way.(round robin method)
+
 >> C4: How is the way you divided the cost of scheduling between code
 >> inside and outside interrupt context likely to affect performance?
+
+Answer: 
+-------
+      Scheduling has been split between thread tick() which is called from the timer
+      interrupt handler, and next thread to run(), which is called outside of an
+      interrupt handler. The majority of the scheduling processing is done in the
+      timer interrupt handler, which is where recalculating thread priorities,
+      the system load average,recent cpu values,update the list stores next thread to run.
+      By the Way, most of the code is in thread tick() and little in next thread to run().
+      This  impacts negatively the performance as thread tick() is called every tick,
+      and although we may not do recalculate every tick,
+      we check whether we have to perform recalculations on every tick.
+
 
 ---- RATIONALE ----
 
@@ -130,12 +428,31 @@ ticks   A   B   C   A   B   C   to run
 >> time to work on this part of the project, how might you choose to
 >> refine or improve your design?
 
+Answer: 
+-------
+        At the beginning, the fixed-point representation was implemented storing the
+        actual value of the number in a struct, and using several functions to 
+        perform the necessary operations. Even if the implementation was correct, 
+        it was judged not efficient by the members of the group: having to call
+        a function only to perform a mathematic operation was cause of a huge 
+        time loss, especially considering that each second, the kernel needs to 
+        recompute the priority of each thread.
+
 >> C6: The assignment explains arithmetic for fixed-point math in
 >> detail, but it leaves it open to you to implement it.  Why did you
 >> decide to implement it the way you did?  If you created an
 >> abstraction layer for fixed-point math, that is, an abstract data
 >> type and/or a set of functions or macros to manipulate fixed-point
 >> numbers, why did you do so?  If not, why not?
+
+Answer: 
+-------
+  we decided to define real as a typedef of an int32_t, and then define
+  a series of functions to actually implement the methods needed to perform
+  the operations. This strategy was preferred to impementing macros because
+  inline functions are more pratical when dealing with adding assertions or bits of codes.
+  this method is preferred of using struct real with many functions for impelemention , It's not efficient  
+  to perform a mathematic operation by causing a huge time loss
 
                SURVEY QUESTIONS
                ================
